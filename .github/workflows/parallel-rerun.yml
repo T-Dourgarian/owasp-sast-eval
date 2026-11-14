@@ -1,0 +1,48 @@
+name: Parallel rerun - all seven 400-case configurations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/parallel-rerun.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parallel-rerun:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: Check out experiment repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install fixed Semgrep and Claude SDK
+        run: python -m pip install "semgrep==1.185.0" "anthropic>=1,<2"
+      - name: Validate experiment scripts before API charges
+        run: python -m py_compile scripts/prepare.py scripts/sample.py scripts/scan_sample.py scripts/standalone_haiku.py scripts/hybrid_haiku.py scripts/parallel_rerun.py
+      - name: Download pinned OWASP Benchmark
+        run: python scripts/prepare.py
+      - name: Reproduce original stratified 400-case sample
+        run: python scripts/sample.py
+      - name: Rerun Semgrep baseline on same sample
+        run: python scripts/scan_sample.py
+      - name: Execute all six Claude configurations concurrently with shared rate limits
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python -u scripts/parallel_rerun.py
+      - name: Preserve complete results, summaries and per-request records
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parallel-rerun-all-seven-400
+          path: |
+            results/stratified_sample_400.csv
+            results/sample_400/
+            results/parallel_rerun_400/
+          retention-days: 90
+          if-no-files-found: warn
