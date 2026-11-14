@@ -1,0 +1,44 @@
+name: Standalone Opus 5.5 20-case cost pilot
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/opus-pilot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  opus-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out experiment code
+        uses: actions/checkout@v4
+      - name: Configure Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Anthropic SDK
+        run: python -m pip install "anthropic>=0.60,<2"
+      - name: Validate pilot code before spending API credits
+        run: python -m py_compile scripts/prepare.py scripts/sample.py scripts/standalone_haiku.py scripts/opus_pilot.py
+      - name: Prepare fixed OWASP Benchmark source
+        run: python scripts/prepare.py
+      - name: Reproduce stratified 400-case parent sample
+        run: python scripts/sample.py
+      - name: Run 20-case Opus standalone pilot only
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPUS_PILOT_MAX_USD: "1.50"
+        run: python -u scripts/opus_pilot.py
+      - name: Upload cost, latency, token and prediction records
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opus-20-case-cost-pilot
+          path: results/opus_pilot_20/
+          retention-days: 90
+          if-no-files-found: warn
