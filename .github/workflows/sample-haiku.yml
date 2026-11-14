@@ -1,4 +1,5 @@
 name: Stratified 400-case Semgrep and Haiku hybrid
+# Rerun after removing unsupported Claude SDK temperature parameter.
 
 on:
   push:

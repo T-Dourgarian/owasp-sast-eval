@@ -125,7 +125,7 @@ def main():
                 started = time.perf_counter()
                 try:
                     res = client.messages.create(
-                        model=MODEL, max_tokens=MAX_TOKENS, temperature=0,
+                        model=MODEL, max_tokens=MAX_TOKENS,
                         system=SYSTEM,
                         messages=[{"role": "user", "content": user_text}]
                     )
