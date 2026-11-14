@@ -1,0 +1,162 @@
+name: Batched hybrid reruns - one model at a time
+
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/batched-hybrids.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Reproduce fixed Semgrep findings
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate Python scripts without spending API credits
+        run: python -m py_compile scripts/prepare.py scripts/sample.py scripts/scan_sample.py scripts/hybrid_haiku.py scripts/standalone_haiku.py scripts/parallel_rerun.py scripts/batched_hybrid.py
+      - name: Install pinned Semgrep
+        run: python -m pip install "semgrep==1.185.0"
+      - name: Download pinned OWASP benchmark
+        run: python scripts/prepare.py
+      - name: Select identical 400 cases
+        run: python scripts/sample.py
+      - name: Scan selected Java files
+        run: python scripts/scan_sample.py
+      - name: Upload fixed sample and Semgrep findings
+        uses: actions/upload-artifact@v4
+        with:
+          name: batched-hybrid-prepared-400
+          path: |
+            results/stratified_sample_400.csv
+            results/sample_400/
+          retention-days: 90
+          if-no-files-found: error
+
+  hybrid-haiku:
+    name: Hybrid haiku (concurrent requests)
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Anthropic SDK
+        run: python -m pip install "anthropic>=1,<2"
+      - name: Download pinned OWASP benchmark
+        run: python scripts/prepare.py
+      - name: Generate and verify identical sample
+        run: |
+          python scripts/sample.py
+          sha256sum results/stratified_sample_400.csv > /tmp/manifest-checksum
+      - name: Retrieve Semgrep findings
+        uses: actions/download-artifact@v4
+        with:
+          name: batched-hybrid-prepared-400
+          path: results/
+      - name: Confirm sample is identical
+        run: sha256sum -c /tmp/manifest-checksum
+      - name: Run batched concurrent hybrid haiku requests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python -u scripts/batched_hybrid.py --model haiku
+      - name: Upload per-finding results, usage, and scan time
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: batched-hybrid-haiku-400
+          path: results/parallel_rerun_400/hybrid-haiku/
+          retention-days: 90
+          if-no-files-found: warn
+
+  hybrid-sonnet:
+    name: Hybrid sonnet (concurrent requests)
+    needs: hybrid-haiku
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Anthropic SDK
+        run: python -m pip install "anthropic>=1,<2"
+      - name: Download pinned OWASP benchmark
+        run: python scripts/prepare.py
+      - name: Generate and verify identical sample
+        run: |
+          python scripts/sample.py
+          sha256sum results/stratified_sample_400.csv > /tmp/manifest-checksum
+      - name: Retrieve Semgrep findings
+        uses: actions/download-artifact@v4
+        with:
+          name: batched-hybrid-prepared-400
+          path: results/
+      - name: Confirm sample is identical
+        run: sha256sum -c /tmp/manifest-checksum
+      - name: Run batched concurrent hybrid sonnet requests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python -u scripts/batched_hybrid.py --model sonnet
+      - name: Upload per-finding results, usage, and scan time
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: batched-hybrid-sonnet-400
+          path: results/parallel_rerun_400/hybrid-sonnet/
+          retention-days: 90
+          if-no-files-found: warn
+
+  hybrid-opus:
+    name: Hybrid opus (concurrent requests)
+    needs: hybrid-sonnet
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Anthropic SDK
+        run: python -m pip install "anthropic>=1,<2"
+      - name: Download pinned OWASP benchmark
+        run: python scripts/prepare.py
+      - name: Generate and verify identical sample
+        run: |
+          python scripts/sample.py
+          sha256sum results/stratified_sample_400.csv > /tmp/manifest-checksum
+      - name: Retrieve Semgrep findings
+        uses: actions/download-artifact@v4
+        with:
+          name: batched-hybrid-prepared-400
+          path: results/
+      - name: Confirm sample is identical
+        run: sha256sum -c /tmp/manifest-checksum
+      - name: Run batched concurrent hybrid opus requests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python -u scripts/batched_hybrid.py --model opus
+      - name: Upload per-finding results, usage, and scan time
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: batched-hybrid-opus-400
+          path: results/parallel_rerun_400/hybrid-opus/
+          retention-days: 90
+          if-no-files-found: warn
