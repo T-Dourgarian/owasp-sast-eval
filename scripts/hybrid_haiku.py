@@ -19,7 +19,7 @@ from prepare import REV
 MODEL = "claude-haiku-5-5"
 INPUT_RATE = 0.10 / 1_000_000
 OUTPUT_RATE = 0.50 / 1_000_000
-MAX_TOKENS = 96
+MAX_TOKENS = 2048
 LIMIT = float(os.environ.get("HYBRID_MAX_USD", "1.00"))
 OUT = Path("results/sample_400")
 SOURCE = Path("benchmark/selected/src/main/java/org/owasp/benchmark/testcode")
@@ -149,6 +149,7 @@ def main():
                     "case_id": case_id, "finding_index": idx,
                     "rule": item.get("check_id", ""), "reported_cwes": cwes(item),
                     "genuine": decision, "model": res.model,
+                    "stop_reason": res.stop_reason,
                     "input_tokens": inp, "output_tokens": out,
                     "usd": round(usd, 9),
                     "latency_seconds": round(duration, 6),

@@ -1,5 +1,5 @@
 name: Stratified 400-case Semgrep and Haiku hybrid
-# Rerun after removing unsupported Claude SDK temperature parameter.
+# Rerun with 2048 max output tokens to allow adaptive thinking and JSON output.
 
 on:
   push:
