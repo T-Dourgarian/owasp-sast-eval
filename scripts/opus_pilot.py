@@ -124,7 +124,9 @@ def main():
     cost_usd = 0.0
     request_latency_sum = 0.0
     results = []
-    costs = []
+    case_costs = []
+    request_count = 0
+    bad_responses = 0
     error = None
     started = time.perf_counter()
     with (ROOT / "per_case.jsonl").open("w", encoding="utf-8") as log:
@@ -132,51 +134,62 @@ def main():
             case_id = case["test_id"]
             source = (SOURCE / (case_id + ".java")).read_text(encoding="utf-8")
             text = prompt(source)
-            # Worst-case output reserve, plus conservative input-byte bound.
-            reserve = (
-                (len(text.encode("utf-8")) + len(SYSTEM.encode("utf-8")) + 2048) * INPUT_RATE
-                + MAX_TOKENS * OUTPUT_RATE
-            )
-            if cost_usd + reserve > BUDGET:
-                error = f"Pilot budget guard triggered before {case_id}"
-                break
-            call_start = time.perf_counter()
-            try:
-                msg = client.messages.create(
-                    model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
-                    messages=[{"role": "user", "content": text}],
+            cost_for_case = 0.0
+            for attempt in range(1, 4):
+                # Conservative application-side cap; actual provider billing can vary.
+                reserve = (
+                    (len(text.encode("utf-8")) + len(SYSTEM.encode("utf-8")) + 2048) * INPUT_RATE
+                    + MAX_TOKENS * OUTPUT_RATE
                 )
-            except Exception as exc:
-                error = f"{case_id}: API error {type(exc).__name__}: {exc}"
-                break
-            latency = time.perf_counter() - call_start
-            i = int(msg.usage.input_tokens)
-            o = int(msg.usage.output_tokens)
-            usd = i * INPUT_RATE + o * OUTPUT_RATE
-            input_tokens += i
-            output_tokens += o
-            cost_usd += usd
-            costs.append(usd)
-            request_latency_sum += latency
-            try:
-                detected = parse_answer(msg)
-            except Exception as exc:
-                detected = None
-                error = f"{case_id}: invalid output, stop={msg.stop_reason}: {exc}"
-            log.write(json.dumps({
-                "test_id": case_id, "detected_cwes": detected,
-                "model": msg.model, "stop_reason": msg.stop_reason,
-                "input_tokens": i, "output_tokens": o,
-                "api_cost_usd": round(usd, 9),
-                "request_latency_seconds": round(latency, 6),
-            }) + "\n")
-            log.flush()
-            if detected is not None:
-                results.append({
-                    "test_id": case_id, "detected_cwes": detected,
-                    "vulnerable": case["vulnerable"] == "true",
-                    "expected_cwe": int(case["cwe"]),
-                })
+                if cost_usd + reserve > BUDGET:
+                    error = f"Pilot budget guard triggered before {case_id}"
+                    break
+                call_start = time.perf_counter()
+                try:
+                    msg = client.messages.create(
+                        model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
+                        messages=[{"role": "user", "content": text}],
+                    )
+                except Exception as exc:
+                    error = f"{case_id}: API error {type(exc).__name__}: {exc}"
+                    break
+                latency = time.perf_counter() - call_start
+                i = int(msg.usage.input_tokens)
+                o = int(msg.usage.output_tokens)
+                usd = i * INPUT_RATE + o * OUTPUT_RATE
+                input_tokens += i
+                output_tokens += o
+                cost_usd += usd
+                cost_for_case += usd
+                request_count += 1
+                request_latency_sum += latency
+                try:
+                    detected = parse_answer(msg)
+                    parse_error = None
+                except Exception as exc:
+                    detected = None
+                    parse_error = f"{type(exc).__name__}: {exc}"
+                    bad_responses += 1
+                log.write(json.dumps({
+                    "test_id": case_id, "attempt": attempt,
+                    "detected_cwes": detected, "parse_error": parse_error,
+                    "content_types": [b.type for b in msg.content],
+                    "model": msg.model, "stop_reason": msg.stop_reason,
+                    "input_tokens": i, "output_tokens": o,
+                    "api_cost_usd": round(usd, 9),
+                    "request_latency_seconds": round(latency, 6),
+                }) + "\n")
+                log.flush()
+                if detected is not None:
+                    results.append({
+                        "test_id": case_id, "detected_cwes": detected,
+                        "vulnerable": case["vulnerable"] == "true",
+                        "expected_cwe": int(case["cwe"]),
+                    })
+                    break
+                if attempt == 3:
+                    error = f"{case_id}: three unparseable replies; last error {parse_error}"
+            case_costs.append(cost_for_case)
             if error:
                 break
     elapsed = time.perf_counter() - started
@@ -186,20 +199,21 @@ def main():
         "pilot_cases": N_PILOT, "pilot_seed": SEED,
         "sample_source": "Previously used stratified 400-case sample, seed 20261114",
         "sample_case_count": 400, "benchmark_revision": REV,
-        "requests_completed": len(costs), "input_tokens": input_tokens,
+        "requests_completed": request_count, "cases_completed": len(results),
+        "non_json_replies": bad_responses, "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "api_cost_usd": round(cost_usd, 9),
         "input_usd_per_million": 4.0, "output_usd_per_million": 20.0,
         "api_request_latency_sum_seconds": round(request_latency_sum, 4),
-        "mean_request_latency_seconds": round(request_latency_sum / len(costs), 4) if costs else None,
+        "mean_request_latency_seconds": round(request_latency_sum / request_count, 4) if request_count else None,
         "total_pilot_wall_seconds": round(elapsed, 4),
         "exact_cwe_case_metrics": score(results, lambda row: row["expected_cwe"] in row["detected_cwes"]) if complete else None,
-        "cost_projection": cost_projection(costs, full_sample) if complete else None,
+        "cost_projection": cost_projection(case_costs, full_sample) if complete else None,
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "scoring_rule": "Case predicted vulnerable if Opus independently emits expected CWE, not given in prompt.",
         "max_tokens": MAX_TOKENS,
         "prompt_source": "scripts/standalone_haiku.py: SYSTEM and prompt() unchanged",
-        "note": "No full Opus scan is triggered by this script. Price estimates are token-usage based, not invoices.",
+        "note": "No full Opus scan is triggered by this script. Each unparseable response is retried at most twice; all retries are billed and included in costs.",
     }
     (ROOT / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print("=== OPUS 20-CASE PILOT RESULTS ===", flush=True)
