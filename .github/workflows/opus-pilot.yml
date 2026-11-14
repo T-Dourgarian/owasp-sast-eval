@@ -1,4 +1,5 @@
 name: Standalone Opus 5.5 20-case cost pilot
+# Retry unparseable Opus responses up to two times, including all billed tokens.
 
 on:
   push:
