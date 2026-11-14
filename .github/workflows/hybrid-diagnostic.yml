@@ -1,0 +1,67 @@
+name: Diagnose transient hybrid API 400 responses
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/hybrid-diagnostic.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python -m pip install "semgrep==1.185.0" "anthropic>=1,<2"
+      - name: Prepare identical benchmark and Semgrep scan
+        run: |
+          python scripts/prepare.py
+          python scripts/sample.py
+          python scripts/scan_sample.py
+      - name: Replay three formerly rejected hybrid inputs and log provider reason
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python - <<'PY'
+          import sys,json,re
+          from pathlib import Path
+          from anthropic import Anthropic, APIStatusError
+          sys.path.insert(0,"scripts")
+          from hybrid_haiku import SYSTEM,prompt,parse_answer
+          from parallel_rerun import SCHEMA_HYBRID
+          data=json.loads(Path("results/sample_400/semgrep.json").read_text())
+          matches={}
+          for f in data["results"]:
+              match=re.search(r"(BenchmarkTest\d{5})\.java$",f["path"])
+              if match:
+                  matches.setdefault(match.group(1),[]).append(f)
+          client=Anthropic(max_retries=0,timeout=120)
+          targets=[
+              ("claude-haiku-5-5","BenchmarkTest00452",0),
+              ("claude-sonnet-5-5","BenchmarkTest00994",1),
+              ("claude-opus-5-5","BenchmarkTest00853",0),
+          ]
+          for model,case,index in targets:
+              source=Path("benchmark/selected/src/main/java/org/owasp/benchmark/testcode")/(case+".java")
+              print("CASE",model,case,"finding_index",index,flush=True)
+              finding=matches[case][index]
+              try:
+                  response=client.messages.create(
+                      model=model,max_tokens=4096,system=SYSTEM,
+                      messages=[{"role":"user","content":prompt(finding,source.read_text(encoding="utf-8"))}],
+                      output_config={"format":{"type":"json_schema","schema":SCHEMA_HYBRID}},
+                  )
+                  print("SUCCESS",model,"input",response.usage.input_tokens,
+                        "output",response.usage.output_tokens,
+                        "decision",parse_answer(response),flush=True)
+              except APIStatusError as error:
+                  print("STATUS_ERROR",model,"status",error.status_code,
+                        "body",repr(getattr(error,"body",None)),
+                        "message",str(error)[:1200],flush=True)
+              except Exception as error:
+                  print("OTHER_ERROR",model,type(error).__name__,str(error)[:1200],flush=True)
+          PY
