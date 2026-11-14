@@ -8,7 +8,7 @@ source = "benchmark/BenchmarkJava/src/main/java/org/owasp/benchmark/testcode"
 output = Path("results")
 output.mkdir(exist_ok=True)
 version = subprocess.check_output(["semgrep", "--version"], text=True).strip()
-command = ["semgrep", "scan", "--config", "p/security-audit", "--metrics", "off",
+command = ["semgrep", "scan", "--config", "p/security-audit", "--no-git-ignore", "--metrics", "off",
            "--disable-version-check", "--json", "--output", "results/semgrep.json", source]
 started = time.perf_counter()
 result = subprocess.run(command, check=False)
