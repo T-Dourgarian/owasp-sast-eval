@@ -149,6 +149,22 @@ def main():
                     msg = client.messages.create(
                         model=MODEL, max_tokens=MAX_TOKENS, system=SYSTEM,
                         messages=[{"role": "user", "content": text}],
+                        output_config={
+                            "format": {
+                                "type": "json_schema",
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "cwes": {
+                                            "type": "array",
+                                            "items": {"type": "integer", "enum": TARGET_CWES},
+                                        }
+                                    },
+                                    "required": ["cwes"],
+                                    "additionalProperties": False,
+                                },
+                            }
+                        },
                     )
                 except Exception as exc:
                     error = f"{case_id}: API error {type(exc).__name__}: {exc}"
@@ -213,6 +229,7 @@ def main():
         "scoring_rule": "Case predicted vulnerable if Opus independently emits expected CWE, not given in prompt.",
         "max_tokens": MAX_TOKENS,
         "prompt_source": "scripts/standalone_haiku.py: SYSTEM and prompt() unchanged",
+        "response_format": "Constrained JSON schema (pilot only; prompt unchanged)",
         "note": "No full Opus scan is triggered by this script. Each unparseable response is retried at most twice; all retries are billed and included in costs.",
     }
     (ROOT / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
