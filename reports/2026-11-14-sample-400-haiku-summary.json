@@ -1,0 +1,53 @@
+{
+  "complete": true,
+  "error": null,
+  "model": "claude-haiku-5-5",
+  "sample_size": 400,
+  "sample_seed": 20261114,
+  "benchmark_revision": "a452b3aafd232245d0753e54eb243d6651f8ef96",
+  "semgrep_version": "1.185.0",
+  "semgrep_ruleset": "p/security-audit",
+  "semgrep_findings": 324,
+  "api_requests": 324,
+  "tokens_input": 583598,
+  "tokens_output": 97286,
+  "api_cost_usd": 0.1070028,
+  "input_usd_per_million_tokens": 0.1,
+  "output_usd_per_million_tokens": 0.5,
+  "api_latency_sum_seconds": 631.1677,
+  "api_latency_mean_seconds": 1.948,
+  "api_wall_seconds": 631.2042,
+  "semgrep_scan_seconds": 7.4498,
+  "pipeline_seconds": 638.6541,
+  "semgrep_metrics": {
+    "tp": 166,
+    "fp": 80,
+    "fn": 40,
+    "tn": 114,
+    "precision": 0.6747967479674797,
+    "recall": 0.8058252427184466,
+    "f1": 0.7345132743362832
+  },
+  "hybrid_metrics": {
+    "tp": 159,
+    "fp": 3,
+    "fn": 47,
+    "tn": 191,
+    "precision": 0.9814814814814815,
+    "recall": 0.7718446601941747,
+    "f1": 0.8641304347826088
+  },
+  "timestamp_utc": "2026-11-14T13:12:29.313426+00:00",
+  "scoring": "Case-level exact benchmark-CWE matching; ground truth never sent to the model",
+  "previous_failed_api_requests_bill_usd": 0.0001854,
+  "combined_consumed_token_cost_across_attempts_usd": 0.1071882,
+  "run_url": "https://github.com/T-Dourgarian/owasp-sast-eval/actions/runs/43597649515",
+  "artifact_url": "https://github.com/T-Dourgarian/owasp-sast-eval/actions/runs/43597649515/artifacts/14115028196",
+  "notes": [
+    "Costs calculated from API-reported actual input/output token usage and published Haiku 5.5 standard API prices, not a billing invoice.",
+    "The final successful experiment had 324 API calls; an earlier failed test made one billable call, cost 0.0001854 USD.",
+    "Ground-truth binary labels were withheld from model prompts and only used for stratification and post-run scoring.",
+    "The 400-case sample was fixed with seed 20261114; exact benchmark commit and Semgrep configuration were recorded.",
+    "Per-finding token counts, decisions and latency, plus raw Semgrep outputs and manifest, are in the artifact (expires 2027-02-12)."
+  ]
+}
