@@ -54,6 +54,7 @@ def evaluate():
     correct_cwe_found = 0
     input_bytes_total = 0
     hybrid_bytes_total = 0
+    hybrid_grouped_bytes_total = 0
     matched_findings = 0
     by_category = collections.Counter()
     for case in benchmark:
@@ -62,12 +63,13 @@ def evaluate():
         observed = by_id[case["id"]]
         if observed:
             any_found += 1
+            hybrid_bytes_total += length * len(observed)
+            hybrid_grouped_bytes_total += length
         matching = [c for c in observed if case["cwe"] in c]
         predicted = bool(matching)
         if predicted:
             correct_cwe_found += 1
             matched_findings += len(matching)
-            hybrid_bytes_total += length
             by_category[case["category"]] += 1
         vulnerable = case["vulnerable"]
         if predicted and vulnerable:
@@ -102,15 +104,18 @@ def evaluate():
     # Standalone: one model request per test case.
     standalone_in = input_bytes_total / INPUT_TOKEN_DIVISOR + count * INPUT_OVERHEAD_TOKENS
     standalone_out = count * OUTPUT_TOKENS_PER_CALL
-    # Hybrid: one model request per case with a candidate finding matching target CWE,
-    # with all candidate findings supplied in a single request.
-    hybrid_in = hybrid_bytes_total / INPUT_TOKEN_DIVISOR + correct_cwe_found * (INPUT_OVERHEAD_TOKENS + HYBRID_OVERHEAD_TOKENS)
-    hybrid_out = correct_cwe_found * OUTPUT_TOKENS_PER_CALL
+    # Hybrid primary: one request for EACH Semgrep finding; ground-truth
+    # information is not used to select which findings reach the model.
+    hybrid_in = hybrid_bytes_total / INPUT_TOKEN_DIVISOR + mapped * (INPUT_OVERHEAD_TOKENS + HYBRID_OVERHEAD_TOKENS)
+    hybrid_out = mapped * OUTPUT_TOKENS_PER_CALL
+    # Alternative: one request per Java file with one or more findings.
+    grouped_in = hybrid_grouped_bytes_total / INPUT_TOKEN_DIVISOR + any_found * (INPUT_OVERHEAD_TOKENS + HYBRID_OVERHEAD_TOKENS)
+    grouped_out = any_found * OUTPUT_TOKENS_PER_CALL
     estimates = {}
     for name, (inp, out) in PRICES.items():
         for mode, n, in_tok, out_tok in (
             ("standalone", count, standalone_in, standalone_out),
-            ("hybrid", correct_cwe_found, hybrid_in, hybrid_out),
+            ("hybrid", mapped, hybrid_in, hybrid_out),
         ):
             estimates[f"{mode}-{name}"] = {
                 "estimated_requests": n,
@@ -118,6 +123,14 @@ def evaluate():
                 "assumed_output_tokens": round(out_tok),
                 "estimated_api_cost_usd": round((in_tok * inp + out_tok * out) / 1_000_000, 3),
             }
+    grouped_alternative = {}
+    for name, (inp, out) in PRICES.items():
+        grouped_alternative[f"hybrid-{name}"] = {
+            "estimated_requests": any_found,
+            "estimated_input_tokens": round(grouped_in),
+            "assumed_output_tokens": round(grouped_out),
+            "estimated_api_cost_usd": round((grouped_in * inp + grouped_out * out) / 1_000_000, 3),
+        }
     result = {
         "baseline": baseline,
         "cost_estimation_assumptions": {
@@ -126,10 +139,15 @@ def evaluate():
             "output_tokens_per_request": OUTPUT_TOKENS_PER_CALL,
             "additional_hybrid_prompt_tokens_per_request": HYBRID_OVERHEAD_TOKENS,
             "standalone_source_bytes_total": input_bytes_total,
-            "hybrid_source_bytes_total": hybrid_bytes_total,
-            "notes": "Estimates are NOT model token counts. Models may tokenize Java differently; evaluate 20-50 paid requests to calibrate. Hybrid validation limited to findings with benchmark CWE. Anthropic standard API USD rates effective 2026-11-09.",
+            "hybrid_source_bytes_total_with_repeated_code_per_finding": hybrid_bytes_total,
+            "hybrid_grouped_source_bytes_total": hybrid_grouped_bytes_total,
+            "notes": "Estimates are NOT model token counts. Models may tokenize Java differently; evaluate 20-50 paid requests to calibrate. Hybrid estimate sends ALL Semgrep findings, without using ground truth to filter. Primary hybrid estimate is one API request per finding; grouped alternative combines findings within a source file. Anthropic standard API USD rates effective 2026-11-09.",
         },
         "estimated_configurations": estimates,
+        "hybrid_grouped_by_case_alternative": grouped_alternative,
+        "estimated_all_models_total_with_grouped_hybrid_usd": round(
+            sum(estimates[f"standalone-{n}"]["estimated_api_cost_usd"] for n in PRICES)
+            + sum(d["estimated_api_cost_usd"] for d in grouped_alternative.values()), 2),
         "estimated_six_configuration_total_usd": round(sum(v["estimated_api_cost_usd"] for v in estimates.values()), 2),
     }
     if result["baseline"]["semgrep_errors"]:
