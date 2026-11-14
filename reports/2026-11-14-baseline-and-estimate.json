@@ -1,0 +1,113 @@
+{
+  "baseline": {
+    "cases": 2740,
+    "vulnerable": 1415,
+    "non_vulnerable": 1325,
+    "tp": 1094,
+    "fp": 512,
+    "fn": 321,
+    "tn": 813,
+    "precision": 0.6811955168119551,
+    "recall": 0.7731448763250883,
+    "f1": 0.7242634889109566,
+    "raw_findings": 2163,
+    "benchmark_findings": 2163,
+    "findings_without_cwe_metadata": 0,
+    "cases_with_any_findings": 1769,
+    "cases_with_correct_cwe_findings": 1606,
+    "findings_matching_case_cwe": 1716,
+    "cases_with_cwe_match_by_category": {
+      "cmdi": 208,
+      "hash": 89,
+      "ldapi": 54,
+      "pathtraver": 226,
+      "securecookie": 36,
+      "sqli": 377,
+      "trustbound": 61,
+      "weakrand": 218,
+      "xpathi": 27,
+      "xss": 310
+    },
+    "semgrep_scan_seconds": 31.891003217999994,
+    "semgrep_version": "1.185.0",
+    "semgrep_ruleset": "p/security-audit",
+    "benchmark_revision": "a452b3aafd232245d0753e54eb243d6651f8ef96",
+    "semgrep_errors": 0
+  },
+  "cost_estimation_assumptions": {
+    "byte_divisor_for_approximate_input_tokens": 3,
+    "input_prompt_overhead_tokens_per_request": 300,
+    "output_tokens_per_request": 100,
+    "additional_hybrid_prompt_tokens_per_request": 200,
+    "standalone_source_bytes_total": 11448786,
+    "hybrid_source_bytes_total_with_repeated_code_per_finding": 9028362,
+    "hybrid_grouped_source_bytes_total": 7051309,
+    "notes": "Estimates are NOT model token counts. Models may tokenize Java differently; evaluate 20-50 paid requests to calibrate. Hybrid estimate sends ALL Semgrep findings, without using ground truth to filter. Primary hybrid estimate is one API request per finding; grouped alternative combines findings within a source file. Anthropic standard API USD rates effective 2026-11-09."
+  },
+  "estimated_configurations": {
+    "standalone-haiku": {
+      "estimated_requests": 2740,
+      "estimated_input_tokens": 4638262,
+      "assumed_output_tokens": 274000,
+      "estimated_api_cost_usd": 0.601
+    },
+    "hybrid-haiku": {
+      "estimated_requests": 2163,
+      "estimated_input_tokens": 4090954,
+      "assumed_output_tokens": 216300,
+      "estimated_api_cost_usd": 0.517
+    },
+    "standalone-sonnet": {
+      "estimated_requests": 2740,
+      "estimated_input_tokens": 4638262,
+      "assumed_output_tokens": 274000,
+      "estimated_api_cost_usd": 12.017
+    },
+    "hybrid-sonnet": {
+      "estimated_requests": 2163,
+      "estimated_input_tokens": 4090954,
+      "assumed_output_tokens": 216300,
+      "estimated_api_cost_usd": 10.345
+    },
+    "standalone-opus": {
+      "estimated_requests": 2740,
+      "estimated_input_tokens": 4638262,
+      "assumed_output_tokens": 274000,
+      "estimated_api_cost_usd": 24.033
+    },
+    "hybrid-opus": {
+      "estimated_requests": 2163,
+      "estimated_input_tokens": 4090954,
+      "assumed_output_tokens": 216300,
+      "estimated_api_cost_usd": 20.69
+    }
+  },
+  "hybrid_grouped_by_case_alternative": {
+    "hybrid-haiku": {
+      "estimated_requests": 1769,
+      "estimated_input_tokens": 3234936,
+      "assumed_output_tokens": 176900,
+      "estimated_api_cost_usd": 0.412
+    },
+    "hybrid-sonnet": {
+      "estimated_requests": 1769,
+      "estimated_input_tokens": 3234936,
+      "assumed_output_tokens": 176900,
+      "estimated_api_cost_usd": 8.239
+    },
+    "hybrid-opus": {
+      "estimated_requests": 1769,
+      "estimated_input_tokens": 3234936,
+      "assumed_output_tokens": 176900,
+      "estimated_api_cost_usd": 16.478
+    }
+  },
+  "estimated_all_models_total_with_grouped_hybrid_usd": 61.78,
+  "estimated_six_configuration_total_usd": 68.2,
+  "provenance": {
+    "github_run_url": "https://github.com/T-Dourgarian/owasp-sast-eval/actions/runs/43595938279",
+    "artifact_url": "https://github.com/T-Dourgarian/owasp-sast-eval/actions/runs/43595938279/artifacts/14114925459",
+    "measurement_date_utc": "2026-11-14",
+    "note": "This is one completed GitHub Actions Semgrep baseline. API cost estimates require calibration using actual API token usage."
+  }
+}
