@@ -21,10 +21,13 @@ async def run(tier):
     cases, sources, findings, scan, baseline = load()
     experiment = Experiment("hybrid", tier, cases, sources, findings)
     limiter = Throttle()
-    async with AsyncAnthropic(timeout=120, max_retries=0) as client:
+    client = AsyncAnthropic(timeout=120, max_retries=0)
+    try:
         summary = await run_experiment(
             experiment, client, limiter, cases, scan["scan_seconds"]
         )
+    finally:
+        await client.close()
     summary["execution"] = {
         "type": "single-hybrid-tier-only",
         "max_concurrent_requests": 8,
